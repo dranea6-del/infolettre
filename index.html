@@ -191,6 +191,36 @@
     padding-right: 0;
   }
 
+  .infos-bref {
+    margin: 22px 40px 14px 40px;
+    padding: 16px 18px 12px 18px;
+    background: #efe9f8;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .infos-bref h3 {
+    margin: 0 0 8px 0;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 11.5px;
+    font-weight: bold;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    color: var(--violet-fonce);
+  }
+  .infos-bref ul { margin: 0; padding: 0; list-style: none; }
+  .infos-bref li {
+    font-family: Georgia, serif;
+    font-size: 14.5px;
+    line-height: 1.5;
+    color: #3a3245;
+    margin: 0 0 8px 0;
+    padding: 9px 14px 9px 14px;
+    background: #faf7fe;
+    border-left: 4px solid var(--violet);
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .infos-bref li.masque { display: none; }
+  .infos-bref a { color: var(--violet-fonce); font-weight: bold; }
+
   .section-titre {
     padding: 16px 32px 8px 32px;
     font-size: 18px;
@@ -290,6 +320,7 @@
     .en-tete-logos { flex-wrap: wrap; }
     .en-tete h2, .en-tete .sous-titre { max-width: 100%; }
     .intro { margin: 20px 16px 0 16px; }
+    .infos-bref { margin: 18px 16px 0 16px; }
   }
   .carte {
     border-radius: 2px;
@@ -467,6 +498,8 @@
   }
 
   @media print {
+    .infos-bref { break-inside: avoid; page-break-inside: avoid; }
+    .infos-bref li { break-inside: avoid; page-break-inside: avoid; }
     .barre-outils, .filtres, .aide-pdf, #zone-vide { display: none !important; }
     body { background: #fff; }
     #zone-newsletter { box-shadow: none; margin: 0; max-width: 100%; }
@@ -559,6 +592,10 @@
     <p class="date-edition" id="v-date-edition"></p>
   </div>
   <div class="intro" id="v-texte-intro"></div>
+  <div class="infos-bref" id="bloc-infos-bref" style="display:none;">
+    <h3>Infos en bref</h3>
+    <ul id="conteneur-infos-bref"></ul>
+  </div>
 
   <div class="categorie-bloc" id="conteneur-categories"></div>
 
@@ -610,6 +647,11 @@ function appliquerEspacesInsecables(data) {
   ['titre_newsletter', 'nom_newsletter', 'date_edition', 'titre_edition', 'sous_titre_edition', 'texte_intro'].forEach(champ => {
     if (c[champ] != null) c[champ] = insecable(c[champ]);
   });
+  (data.infos_bref || []).forEach(i => {
+    ['texte', 'lien_texte'].forEach(champ => {
+      if (i[champ] != null) i[champ] = insecable(i[champ]);
+    });
+  });
   (data.articles || []).forEach(art => {
     ['categorie', 'titre', 'description', 'lien_texte'].forEach(champ => {
       if (art[champ] != null) art[champ] = insecable(art[champ]);
@@ -638,6 +680,28 @@ function gererErreurLogo(img) {
 gererErreurLogo(document.getElementById('logo-drane'));
 gererErreurLogo(document.getElementById('logo-academie'));
 
+function infoBrefVide(i) {
+  return !i || !i.texte || String(i.texte).trim() === '';
+}
+function infosBrefValides(data, filtre) {
+  return (data.infos_bref || []).filter(i => {
+    if (infoBrefVide(i)) return false;
+    if (!filtre || filtre === 'tous') return true;
+    const p = String(i.publics || '').split(',').map(x => x.trim()).filter(Boolean);
+    return p.length === 0 || p.includes(filtre);
+  });
+}
+const PALETTE_INFOS_BREF = ['#6d4aa8', '#d99a3d', '#3f9c6e', '#c8483f', '#3b7dc4', '#c0559a'];
+function couleurInfoBref(data, i) {
+  const c = String(i.couleur || '').trim();
+  if (/^#[0-9a-fA-F]{3,8}$/.test(c)) return c;
+  const idx = (data.infos_bref || []).filter(x => !infoBrefVide(x)).indexOf(i);
+  return PALETTE_INFOS_BREF[(idx < 0 ? 0 : idx) % PALETTE_INFOS_BREF.length];
+}
+function lienInfoBref(i) {
+  return i.lien_url && String(i.lien_url).trim() ? String(i.lien_url).trim() : '';
+}
+
 function estEvenementVide(ev) {
   if (!ev) return true;
   const champs = ['mois', 'jour', 'titre', 'description'];
@@ -657,6 +721,22 @@ function rendreNewsletter(data) {
   document.getElementById('v-sous-titre-edition').textContent = c.sous_titre_edition || '';
   document.getElementById('v-date-edition').textContent = c.date_edition || '';
   document.getElementById('v-texte-intro').textContent = c.texte_intro || '';
+  const ulInfos = document.getElementById('conteneur-infos-bref');
+  ulInfos.innerHTML = '';
+  (data.infos_bref || []).filter(i => !infoBrefVide(i)).forEach(i => {
+    const li = document.createElement('li');
+    li.dataset.publics = String(i.publics || '');
+    li.style.borderLeftColor = couleurInfoBref(data, i);
+    li.appendChild(document.createTextNode(i.texte + ' '));
+    const url = lienInfoBref(i);
+    if (url) {
+      const a = document.createElement('a');
+      a.href = url; a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = (i.lien_texte && String(i.lien_texte).trim()) || 'En savoir plus';
+      li.appendChild(a);
+    }
+    ulInfos.appendChild(li);
+  });
   const emailEl = document.getElementById('v-email-contact');
   emailEl.textContent = c.email_contact || '';
   emailEl.href = 'mailto:' + (c.email_contact || '');
@@ -741,6 +821,13 @@ function rendreNewsletter(data) {
 }
 
 function appliquerFiltre() {
+  const lis = document.querySelectorAll('#conteneur-infos-bref li');
+  lis.forEach(li => {
+    const p = (li.dataset.publics || '').split(',').map(x => x.trim()).filter(Boolean);
+    li.classList.toggle('masque', filtrePublicActif !== 'tous' && p.length > 0 && !p.includes(filtrePublicActif));
+  });
+  document.getElementById('bloc-infos-bref').style.display =
+    document.querySelectorAll('#conteneur-infos-bref li:not(.masque)').length ? '' : 'none';
   const cartes = document.querySelectorAll('.carte');
   cartes.forEach(carte => {
     if (filtrePublicActif === 'tous') {
@@ -781,7 +868,14 @@ function excelVersJSON(workbook) {
     publics: (a.publics || a.public_cible || '').split(',').map(s => s.trim()).filter(Boolean)
   }));
   const evenements = feuille('Evenements');
-  return { contenu, articles, evenements };
+  const infos_bref = feuille('Infos en bref').map(r => ({
+    texte: r.texte || r.Texte || '',
+    lien_url: r.lien_url || r.lien || r.Lien || '',
+    lien_texte: r.lien_texte || r.libelle_lien || '',
+    publics: r.publics || r.public || r.Public || '',
+    couleur: r.couleur || r.Couleur || ''
+  }));
+  return { contenu, articles, evenements, infos_bref };
 }
 
 document.getElementById('fichier-excel').addEventListener('change', function(e) {
@@ -901,6 +995,14 @@ function genererHtmlWeb(data, filtre) {
 
   const htmlIntro = c.texte_intro ? `  <div style="margin:26px 40px 0 40px; padding:0 0 6px 22px; font-family:Georgia, serif; font-size:16px; line-height:1.65; color:#3a3245; border-left:3px solid #d99a3d;">${echapperHtml(c.texte_intro)}</div>` : '';
 
+  const infosBref = infosBrefValides(data, filtre);
+  const htmlInfosBref = infosBref.length ? `  <div style="margin:22px 40px 0 40px; padding:16px 18px 8px 18px; background:#efe9f8;">
+    <div style="font-family:Arial, Helvetica, sans-serif; font-size:11.5px; font-weight:bold; letter-spacing:1.8px; text-transform:uppercase; color:#382057; margin:0 0 8px 0;">Infos en bref</div>
+    <ul style="margin:0; padding:0; list-style:none;">
+${infosBref.map(i => `      <li style="font-family:Georgia, serif; font-size:14.5px; line-height:1.5; color:#3a3245; margin:0 0 8px 0; padding:9px 14px; background:#faf7fe; border-left:4px solid ${couleurInfoBref(data, i)};">${echapperHtml(i.texte)}${lienInfoBref(i) ? ` <a href="${echapperHtml(lienInfoBref(i))}" style="color:#382057; font-weight:bold;">${echapperHtml(i.lien_texte || 'En savoir plus')}</a>` : ''}</li>`).join('\n')}
+    </ul>
+  </div>` : '';
+
   const htmlCategories = categories.map((groupe, idx) => `  <div style="padding:10px 40px 8px 40px;">
     <div style="position:relative; font-family:Arial, Helvetica, sans-serif; font-size:13px; font-weight:bold; letter-spacing:1.8px; text-transform:uppercase; color:#382057; margin:34px 0 18px 0; padding:0 0 12px 58px; min-height:34px; display:flex; align-items:center; border-bottom:2px solid #eee7fa;">
       <span style="position:absolute; left:0; font-family:Georgia, serif; font-size:34px; font-weight:bold; color:#ede6f7; line-height:1;">${String(idx + 1).padStart(2, '0')}</span>
@@ -953,6 +1055,7 @@ function genererHtmlWeb(data, filtre) {
 ${htmlLogos}
 ${htmlEnTete}
 ${htmlIntro}
+${htmlInfosBref}
 ${htmlCategories}
 ${htmlEvenements}
 ${htmlPied}
@@ -997,6 +1100,23 @@ function genererHtmlEmail(data, filtre) {
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
         <td width="4" bgcolor="#d99a3d">&nbsp;</td>
         <td style="padding:0 0 0 16px; font-family:Georgia, serif; font-size:16px; line-height:1.6; color:#3a3245;">${t(c.texte_intro)}</td>
+      </tr></table>
+    </td>
+  </tr>` : '';
+
+  const infosBref = infosBrefValides(data, filtre);
+  const infosLigne = infosBref.length ? `  <tr>
+    <td style="padding:22px 30px 0 30px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+        <td bgcolor="#efe9f8" style="padding:14px 14px 6px 14px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr><td style="font-family:Arial, Helvetica, sans-serif; font-size:11px; font-weight:bold; letter-spacing:1.5px; text-transform:uppercase; color:#382057; padding:0 0 8px 0;">Infos en bref</td></tr>
+${infosBref.map(i => `            <tr><td style="padding:0 0 8px 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+              <td width="4" bgcolor="${couleurInfoBref(data, i)}">&nbsp;</td>
+              <td bgcolor="#faf7fe" style="padding:8px 12px; font-family:Georgia, serif; font-size:14px; line-height:1.5; color:#3a3245;">${t(i.texte)}${lienInfoBref(i) ? ` <a href="${t(lienInfoBref(i))}" style="color:#382057; font-weight:bold;">${t(i.lien_texte || 'En savoir plus')}</a>` : ''}</td>
+            </tr></table></td></tr>`).join('\n')}
+          </table>
+        </td>
       </tr></table>
     </td>
   </tr>` : '';
@@ -1085,6 +1205,7 @@ function genererHtmlEmail(data, filtre) {
 ${logosLigne}
 ${enTeteLignes}
 ${introLigne}
+${infosLigne}
 ${categoriesLignes}
 ${evenementsLignes}
 ${piedLigne}
